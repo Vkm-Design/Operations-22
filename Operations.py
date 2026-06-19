@@ -92,4 +92,69 @@ with oh2_col4:
 base_hourly_rate = 45.0
 routing_data = []
 
-for
+for op_num in range(1, 23):
+    op_name = f"Operation {op_num:02d}"
+    process_description = "Standard Process Step"
+    cycle_time = 1.5
+    tool_cost_batch = 50.0
+    m_rate = base_hourly_rate
+    
+    # --- EDIT INDIVIDUAL OPERATION LOGIC BELOW ---
+    if op_num == 1:
+        process_description = f"Rough Turn Outer Dia 1 from Ø{input_dia_1} to Ø{finish_dia_1}"
+        stock_to_remove = input_dia_1 - finish_dia_1
+        cycle_time = (stock_to_remove * 0.4) + (thickness_d1 * 0.02)
+        tool_cost_batch = 120.0
+        
+    elif op_num == 2:
+        process_description = f"Bore Internal Dia 2 (Depth: {thickness_d2}mm)"
+        if input_dia_2 == 0:
+            cycle_time = (finish_dia_2 * 0.1) * (thickness_d2 / 10)
+        else:
+            cycle_time = ((finish_dia_2 - input_dia_2) * 0.05) * (thickness_d2 / 10)
+        tool_cost_batch = 180.0
+        
+    elif op_num == 3:
+        process_description = f"Drill {oil_hole_qty_1} Oil Hole(s) Ø{oil_hole_dia_1} to Depth {oil_hole_depth_1}mm"
+        if oil_hole_qty_1 > 0:
+            cycle_time = (oil_hole_qty_1 * oil_hole_depth_1 * 0.05)
+        else:
+            cycle_time = 0.0
+            process_description = "Oil Hole 1 Stage Skipped"
+        tool_cost_batch = 60.0
+
+    # Math calculations
+    machining_cost_pc = (cycle_time / 60) * m_rate
+    tool_cost_pc = tool_cost_batch / batch_size
+    total_op_cpc = machining_cost_pc + tool_cost_pc
+    shift_output = (8 * 60) / cycle_time if cycle_time > 0 else 0
+    
+    routing_data.append({
+        "Operation": op_name,
+        "Process Description": process_description,
+        "Cycle Time (Min)": round(cycle_time, 2),
+        "Machine Cost/Pc ($)": round(machining_cost_pc, 2),
+        "Tool Cost/Pc ($)": round(tool_cost_pc, 2),
+        "Total Stage CPC ($)": round(total_op_cpc, 2),
+        "Shift Yield (pcs)": int(shift_output)
+    })
+
+df_routing = pd.DataFrame(routing_data)
+
+# --- Step 6: Document Summary Display ---
+st.subheader("📄 Manufacturing Routing Card Summary")
+
+meta_col1, meta_col2, meta_col3 = st.columns(3)
+with meta_col1:
+    st.write(f"**Document No:** {doc_num}")
+    st.write(f"**Customer:** {customer_name}")
+with meta_col2:
+    st.write(f"**Part Name:** {part_name}")
+    st.write(f"**Material & Hardness:** {material_type} ({hardness_value})")
+with meta_col3:
+    total_time = df_routing["Cycle Time (Min)"].sum()
+    total_cpc = df_routing["Total Stage CPC ($)"].sum()
+    st.write(f"**Total Estimated Cycle Time:** {total_time:.2f} Mins")
+    st.write(f"**Total Process CPC:** ${total_cpc:.2f}")
+
+st.dataframe(df_routing.set_index("Operation"), use_container_width=True)
