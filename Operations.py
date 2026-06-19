@@ -8,7 +8,7 @@ st.set_page_config(page_title="Advanced Component Router", layout="wide")
 st.title("⚙️ Engineering Process Planner & Routing Engine")
 st.write("Fill out the global component details below. The system will cascade these dimensions through all 22 operations.")
 
----
+#---
 # --- Step 1: Global Settings & Documentation ---
 st.header("📋 Global Component Specifications")
 
@@ -62,7 +62,7 @@ with st.expander("Costing & Production Volume Settings"):
     with econ_col2:
         base_hourly_rate = st.number_input("Base Machine Hourly Rate ($/hr)", min_value=1.0, value=45.0, step=5.0)
 
----
+#---
 # --- Step 2: Automated 22-Operation Engineering Engine ---
 
 routing_data = []
@@ -141,7 +141,7 @@ for op_num in range(1, 23):
 
 df_routing = pd.DataFrame(routing_data)
 
----
+#---
 # --- Step 3: Document Summary Display ---
 st.markdown("---")
 st.subheader("📄 Manufacturing Routing Card Summary")
