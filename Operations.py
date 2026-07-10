@@ -79,6 +79,43 @@ with sidebar:
     thickness_d2 = st.number_input("Small End Thickness (mm)", value=16.0)
     oil_hole_depth = st.number_input("Oil Hole Depth (mm)", value=3.0)
 
+# --- Place this function right above the loop ---
+def calculate_op3_vmc_cycle(finish_dia1, thickness_d1, finish_dia2, thickness_d2, hrc_corr):
+    """
+    Replicates the exact mathematical behavior of calcOp3CycleTime from your script.
+    """
+    MAKINO_TOOL_CHANGE = 3.3
+    MAKINO_POSITION = 1.2
+    
+    # --- Big End (Bore) Sizing & Time Logic ---
+    be_step1_d = round(finish_dia1 - 0.66, 2)
+    be_step2_d = round(finish_dia1 - 0.36, 2)
+    
+    vc_boring = 120 * hrc_corr["rpm"]
+    feed_fn = 0.12 * hrc_corr["feed"]
+    
+    rpm_be = (vc_boring * 1000) / (math.pi * finish_dia1) if finish_dia1 > 0 else 1000
+    feed_rate_be = rpm_be * feed_fn
+    
+    approach_allowance = 4.0 
+    be_cut_time = ((thickness_d1 + approach_allowance) / feed_rate_be) * 60 if feed_rate_be > 0 else 15
+    
+    # --- Small End Sizing & Selection Logic ---
+    if finish_dia2 <= 20:
+        se_drill_d = round(finish_dia2 - 0.36, 2)
+        vc_drill = 60 * hrc_corr["rpm"]
+        rpm_se = (vc_drill * 1000) / (math.pi * se_drill_d) if se_drill_d > 0 else 1000
+        feed_rate_se = 255 * hrc_corr["feed"] 
+        se_cut_time = ((thickness_d2 + approach_allowance) / feed_rate_se) * 60 if feed_rate_se > 0 else 10
+    else:
+        rpm_se = (100 * 1000) / (math.pi * finish_dia2)
+        feed_rate_se = rpm_se * 0.10
+        se_cut_time = ((thickness_d2 + approach_allowance) / feed_rate_se) * 60
+
+    total_machining_seconds = be_cut_time + se_cut_time + (MAKINO_TOOL_CHANGE * 2) + MAKINO_POSITION
+    return max(25.0, round(total_machining_seconds, 1))
+
+
 # --- Process Smart Engine Initial Calculation Mapping ---
 calculated_op3_time = max(25.0, round((finish_dia1 * 0.4) + (finish_dia2 * 0.5) + (thickness_d1 * 0.3), 1))
 
