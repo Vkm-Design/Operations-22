@@ -1,240 +1,160 @@
 import streamlit as st
 import pandas as pd
-import math
-import io
 
-# --- Configuration & Master Data ---
-st.set_page_config(layout="wide", page_title="Con Rod Process Planner", page_icon="⚙️")
+# --- Page Configuration ---
+st.set_page_config(page_title="Advanced Component Router", layout="wide")
 
-OPERATION_NAMES = [
-    "Inward Inspection Of Forging",
-    "Rough Thickness Grinding",
-    "Combined Operations- VMC",
-    "Big End Chamfering 2nd Side",
-    "Heat treatment, (Case carburizing, Hardening & temper)",
-    "Shot blasting",
-    "Induction softening",
-    "Finish Thickness Grinding",
-    "Hard Boring B/E & S/E",
-    "Oil Hole Drilling & Chamfering",
-    "Oil Hole Deburing",
-    "Small End Chamfering",
-    "B/E Honning",
-    "S/E Honning",
-    "Crack Inspection",
-    "Demagnetising",
-    "High Pressure Cleaning",
-    "Visual Inspection-100%",
-    "100% Inspection (CD, Bend & Twist )",
-    "Laser Marking",
-    "Final Inspection",
-    "Oiling & Packing"
-]
+st.title("⚙️ Engineering Process Planner & Routing Engine")
+st.write("Fill out the global component details below. The system will cascade these dimensions through all 22 operations.")
 
-MACHINE_COST_DEFAULTS = {
-    "Manual": 0,
-    "Manual with Gauge": 0,
-    "SDG (Ø600)- For CR Thickness Grinding": 36,
-    "Makino": 60,
-    "Sansera Horizontal Machine": 45,
-    "SQF": 80,
-    "Shot Blasting M/c": 18,
-    "IH M/c": 22,
-    "SFB 02- For CR Fine Boring with Index table & NT": 55,
-    "SHD 03/ SID- For CR Oil Hole Drilling": 28,
-    "Deburring Station": 10,
-    "Drilling Machine": 15,
-    "SVH- For CR Vertical Honing/Big End Honing": 35,
-    "MPI": 12,
-    "Demagnetiser": 5,
-    "CLEANING 01- Cleantech": 20,
-    "Laser Marking M/c": 25,
-}
+# --- Step 1: Global Settings & Documentation ---
+st.header("📋 Global Component Specifications")
 
-# --- Application Header Banner ---
-st.title("⚙️ Con Rod Process Planner & Routing Engine")
-st.caption("Connecting Rod — 22 Operations | Automated Cycle Time, Tool Wear & Cost Calculation")
-
-# --- Layout Panels ---
-sidebar, main_content = st.columns([1, 3])
-
-with sidebar:
-    st.header("📋 Document Metadata")
+# Documentation Fields
+doc_col1, doc_col2, doc_col3 = st.columns(3)
+with doc_col1:
     doc_num = st.text_input("Document Number", value="DOC-2026-001")
-    part_name = st.text_input("Part Name", value="Con Rod — SCr420HV")
-    customer = st.text_input("Customer Name", value="Global Corp")
+with doc_col2:
+    part_name = st.text_input("Part Name", value="Main Shaft / Valve Body")
+with doc_col3:
+    customer_name = st.text_input("Customer Name", value="Global Machining Corp")
+
+# --- Step 2: Global Material & Hardness Options ---
+st.subheader("🪵 Material Selection")
+mat_col1, mat_col2, mat_col3 = st.columns(3)
+with mat_col1:
+    material_type = st.selectbox("Material Grade", ["Aluminium", "Carbon Steel", "Alloy Steel", "Stainless Steel"])
+with mat_col2:
+    hardness_value = st.text_input("Hardness (e.g., 30 HRC, 220 HB)", value="32 HRC")
+with mat_col3:
+    batch_size = st.number_input("Production Batch Size (pcs)", min_value=1, value=500, step=50)
+
+# --- Step 3: Horizontal Sizing Matrix (Lines 1 & 2) ---
+st.subheader("📐 Diameter & Thickness Parameters")
+
+# Line 1: D1 Parameters
+st.markdown("**Line 1: Diameter 1 (D1) Sizing**")
+d1_col1, d1_col2, d1_col3, d1_col4, d1_col5 = st.columns(5)
+with d1_col1:
+    finish_dia_1 = st.number_input("Finish Size D1 (mm)", min_value=0.0, value=35.0, step=0.1)
+with d1_col2:
+    tolerance_d1 = st.number_input("D1 Tolerance (mm)", min_value=0.000, value=0.025, format="%.3f", step=0.005)
+with d1_col3:
+    surface_finish_d1 = st.number_input("D1 Surface Finish (Ra)", min_value=0.0, value=1.6, step=0.4, format="%.1f")
+with d1_col4:
+    suggested_input_d1 = finish_dia_1 + 4.0
+    input_dia_1 = st.number_input("Input Size D1 (mm)", min_value=0.0, value=suggested_input_d1, step=1.0)
+with d1_col5:
+    thickness_d1 = st.number_input("Thickness/Length for D1 (mm)", min_value=0.0, value=40.0, step=1.0)
+
+# Line 2: D2 Parameters
+st.markdown("**Line 2: Diameter 2 (D2) Sizing**")
+d2_col1, d2_col2, d2_col3, d2_col4, d2_col5 = st.columns(5)
+with d2_col1:
+    finish_dia_2 = st.number_input("Finish Size D2 (mm)", min_value=0.0, value=25.0, step=0.1)
+with d2_col2:
+    tolerance_d2 = st.number_input("D2 Tolerance (mm)", min_value=0.000, value=0.025, format="%.3f", step=0.005)
+with d2_col3:
+    surface_finish_d2 = st.number_input("D2 Surface Finish (Ra)", min_value=0.0, value=1.6, step=0.4, format="%.1f")
+with d2_col4:
+    input_dia_2 = st.number_input("Input Size D2 (mm) [Solid]", min_value=0.0, value=0.0, step=1.0)
+with d2_col5:
+    thickness_d2 = st.number_input("Thickness/Length for D2 (mm)", min_value=0.0, value=20.0, step=1.0)
+
+# --- Step 4: Oil Hole Sizing Parameters ---
+st.subheader("🛢️ Oil Hole Specifications")
+
+# Row 1: Oil Hole 1 Configurations
+st.markdown("**Oil Hole 1 Parameters**")
+oh1_col1, oh1_col2, oh1_col3, oh1_col4 = st.columns(4)
+with oh1_col1:
+    oil_hole_qty_1 = st.number_input("Hole 1 Qty", min_value=0, value=1, step=1)
+with oh1_col2:
+    oil_hole_dia_1 = st.number_input("Hole 1 Size/Dia (mm)", min_value=0.0, value=10.0, step=0.5)
+with oh1_col3:
+    oil_hole_finish_1 = st.number_input("Hole 1 Surface Finish (Ra)", min_value=0.0, value=3.2, step=0.4, format="%.1f")
+with oh1_col4:
+    oil_hole_depth_1 = st.number_input("Hole 1 Depth (mm)", min_value=0.0, value=15.0, step=1.0)
+
+# Row 2: Oil Hole 2 Configurations
+st.markdown("**Oil Hole 2 Parameters**")
+oh2_col1, oh2_col2, oh2_col3, oh2_col4 = st.columns(4)
+with oh2_col1:
+    oil_hole_qty_2 = st.number_input("Hole 2 Qty", min_value=0, value=0, step=1)
+with oh2_col2:
+    oil_hole_dia_2 = st.number_input("Hole 2 Size/Dia (mm)", min_value=0.0, value=12.0, step=0.5)
+with oh2_col3:
+    oil_hole_finish_2 = st.number_input("Hole 2 Surface Finish (Ra)", min_value=0.0, value=3.2, step=0.4, format="%.1f")
+with oh2_col4:
+    oil_hole_depth_2 = st.number_input("Hole 2 Depth (mm)", min_value=0.0, value=20.0, step=1.0)
+
+# --- Step 5: Automated 22-Operation Engineering Engine ---
+base_hourly_rate = 45.0
+routing_data = []
+
+for op_num in range(1, 23):
+    op_name = f"Operation {op_num:02d}"
+    process_description = "Standard Process Step"
+    cycle_time = 1.5
+    tool_cost_batch = 50.0
+    m_rate = base_hourly_rate
     
-    st.header("🪵 Material & Parameters")
-    mat_grade = st.selectbox("Material Grade", ["Steel (up to 30 HRC)", "Steel (30–40 HRC)"])
-    hrc_corr = {"rpm": 0.90, "feed": 0.95} if "30–40" in mat_grade else {"rpm": 1.0, "feed": 1.0}
-    
-    batch_size = st.number_input("Batch Size (pcs)", min_value=1, value=500)
-    base_hourly_rate = st.number_input("Base Hourly Rate (INR/hr)", min_value=1, value=500)
-    efficiency = st.number_input("Shift Efficiency (%)", min_value=1, max_value=100, value=90) / 100.0
-
-    st.header("📐 Component Sizing")
-    finish_dia1 = st.number_input("Big End Diameter (mm)", value=38.0)
-    thickness_d1 = st.number_input("Big End Thickness (mm)", value=16.0)
-    finish_dia2 = st.number_input("Small End Diameter (mm)", value=14.0)
-    thickness_d2 = st.number_input("Small End Thickness (mm)", value=16.0)
-    oil_hole_depth = st.number_input("Oil Hole Depth (mm)", value=3.0)
-
-# --- Place this function right above the loop ---
-def calculate_op3_vmc_cycle(finish_dia1, thickness_d1, finish_dia2, thickness_d2, hrc_corr):
-    """
-    Replicates the exact mathematical behavior of calcOp3CycleTime from your script.
-    """
-    MAKINO_TOOL_CHANGE = 3.3
-    MAKINO_POSITION = 1.2
-    
-    # --- Big End (Bore) Sizing & Time Logic ---
-    be_step1_d = round(finish_dia1 - 0.66, 2)
-    be_step2_d = round(finish_dia1 - 0.36, 2)
-    
-    vc_boring = 120 * hrc_corr["rpm"]
-    feed_fn = 0.12 * hrc_corr["feed"]
-    
-    rpm_be = (vc_boring * 1000) / (math.pi * finish_dia1) if finish_dia1 > 0 else 1000
-    feed_rate_be = rpm_be * feed_fn
-    
-    approach_allowance = 4.0 
-    be_cut_time = ((thickness_d1 + approach_allowance) / feed_rate_be) * 60 if feed_rate_be > 0 else 15
-    
-    # --- Small End Sizing & Selection Logic ---
-    if finish_dia2 <= 20:
-        se_drill_d = round(finish_dia2 - 0.36, 2)
-        vc_drill = 60 * hrc_corr["rpm"]
-        rpm_se = (vc_drill * 1000) / (math.pi * se_drill_d) if se_drill_d > 0 else 1000
-        feed_rate_se = 255 * hrc_corr["feed"] 
-        se_cut_time = ((thickness_d2 + approach_allowance) / feed_rate_se) * 60 if feed_rate_se > 0 else 10
-    else:
-        rpm_se = (100 * 1000) / (math.pi * finish_dia2)
-        feed_rate_se = rpm_se * 0.10
-        se_cut_time = ((thickness_d2 + approach_allowance) / feed_rate_se) * 60
-
-    total_machining_seconds = be_cut_time + se_cut_time + (MAKINO_TOOL_CHANGE * 2) + MAKINO_POSITION
-    return max(25.0, round(total_machining_seconds, 1))
-
-
-# --- Process Smart Engine Initial Calculation Mapping ---
-calculated_op3_time = max(25.0, round((finish_dia1 * 0.4) + (finish_dia2 * 0.5) + (thickness_d1 * 0.3), 1))
-
-calculated_rows = []
-total_cycle_mins = 0.0
-
-for idx, name in enumerate(OPERATION_NAMES, 1):
-    machine = "Manual"
-    parts_loaded = 1
-    op_time = 60
-    lu_time = 5
-    tool_cost = 1200
-    tool_life = 250
-    unit = "Parts"
-    regrinds = 2
-    regrind_cost = 150
-    is_manual = False
-
-    # Route operation-specific parameters
-    if idx == 1:
-        machine, op_time, lu_time, tool_cost, is_manual = "Manual", 0, 0, 0, True
-    elif idx in [2, 8]:
-        machine, parts_loaded, op_time, lu_time, tool_cost, tool_life = "SDG (Ø600)- For CR Thickness Grinding", 2, 12, 0, 40000, 150000
-    elif idx == 3:
-        machine, op_time, lu_time, tool_cost, tool_life, unit = "Makino", calculated_op3_time, 0, 6500, 120, "Min"
-    elif idx == 4:
-        machine, op_time, lu_time, tool_cost, tool_life, unit = "Sansera Horizontal Machine", 48, 5, 800, 200, "Min"
-    elif idx in [5, 6, 7]:
-        machine = "SQF" if idx==5 else ("Shot Blasting M/c" if idx==6 else "IH M/c")
-        op_time, lu_time, tool_cost, is_manual = 0, 0, 0, True
-    elif idx == 9:
-        machine, op_time, lu_time, tool_cost, tool_life, unit = "SFB 02- For CR Fine Boring with Index table & NT", 15, 0, 3500, 45, "Mtr"
-    elif idx == 10:
-        machine, op_time, lu_time, tool_cost, tool_life, unit = "SHD 03/ SID- For CR Oil Hole Drilling", 18, 5, 2400, 35, "Mtr"
-    elif idx == 11:
-        machine, op_time, lu_time, tool_cost, tool_life, unit = "Deburring Station", 10, 0, 0, 1000, "Min"
-    elif idx == 12:
-        machine, op_time, lu_time, tool_cost, tool_life, unit = "Drilling Machine", 6, 6, 350, 180, "Min"
-    elif idx in [13, 14]:
-        machine, parts_loaded, op_time, tool_cost, tool_life = "SVH- For CR Vertical Honing/Big End Honing", 6, 64, 21600 if idx==13 else 180000, 40000 if idx==13 else 200000
-    elif idx in [15, 16, 17, 18, 19, 20, 21]:
-        machine = "MPI" if idx==15 else ("Demagnetiser" if idx==16 else ("CLEANING 01- Cleantech" if idx==17 else ("Laser Marking M/c" if idx==20 else "Manual")))
-        op_time, lu_time, tool_cost, unit = (10 if idx in [15,16,18] else (8 if idx==17 else (15 if idx==19 else 6))), 0, 0, "Min"
-    elif idx == 22:
-        machine, op_time, lu_time, tool_cost, is_manual = "Manual", 0, 0, 0, True
-
-    mc_lakh = MACHINE_COST_DEFAULTS.get(machine, 0)
-
-    # Core Calculations
-    if is_manual or op_time == 0:
-        cycle_min = 0.0
-        parts_per_hr = 0.0
-        tool_cost_pc = 0.0
-    else:
-        total_sec = (op_time / parts_loaded) + lu_time
-        cycle_min = total_sec / 60.0
-        parts_per_hr = (60.0 / cycle_min) * efficiency if cycle_min > 0 else 0
+    # --- EDIT INDIVIDUAL OPERATION LOGIC BELOW ---
+    if op_num == 1:
+        process_description = f"Rough Turn Outer Dia 1 from Ø{input_dia_1} to Ø{finish_dia_1}"
+        stock_to_remove = input_dia_1 - finish_dia_1
+        cycle_time = (stock_to_remove * 0.4) + (thickness_d1 * 0.02)
+        tool_cost_batch = 120.0
         
-        total_life = tool_life * (1 + regrinds)
-        if total_life > 0 and tool_cost > 0:
-            tool_cost_pc = (tool_cost + (regrinds * regrind_cost)) / total_life
+    elif op_num == 2:
+        process_description = f"Bore Internal Dia 2 (Depth: {thickness_d2}mm)"
+        if input_dia_2 == 0:
+            cycle_time = (finish_dia_2 * 0.1) * (thickness_d2 / 10)
         else:
-            tool_cost_pc = 0.0
-            
-    if idx == 11:
-        tool_cost_pc = 0.30  # Deburring specific override
+            cycle_time = ((finish_dia_2 - input_dia_2) * 0.05) * (thickness_d2 / 10)
+        tool_cost_batch = 180.0
+        
+    elif op_num == 3:
+        process_description = f"Drill {oil_hole_qty_1} Oil Hole(s) Ø{oil_hole_dia_1} to Depth {oil_hole_depth_1}mm"
+        if oil_hole_qty_1 > 0:
+            cycle_time = (oil_hole_qty_1 * oil_hole_depth_1 * 0.05)
+        else:
+            cycle_time = 0.0
+            process_description = "Oil Hole 1 Stage Skipped"
+        tool_cost_batch = 60.0
 
-    total_cycle_mins += cycle_min
-
-    calculated_rows.append({
-        "Op #": f"Op {idx:02d}",
-        "Operation Name": name,
-        "Machine Type": machine,
-        "M/c Cost (Lakh)": mc_lakh,
-        "Loaded": parts_loaded if not is_manual else 0,
-        "Mach (s)": op_time if not is_manual else 0,
-        "L/U (s)": lu_time if not is_manual else 0,
-        "Cycle (m)": round(cycle_min, 2),
-        "Pcs/Hr": round(parts_per_hr, 1),
-        "Tool Cost (₹)": tool_cost,
-        "Life": tool_life,
-        "Unit": unit,
-        "Cost/Pc (₹)": round(tool_cost_pc, 2)
+    # Math calculations
+    machining_cost_pc = (cycle_time / 60) * m_rate
+    tool_cost_pc = tool_cost_batch / batch_size
+    total_op_cpc = machining_cost_pc + tool_cost_pc
+    shift_output = (8 * 60) / cycle_time if cycle_time > 0 else 0
+    
+    routing_data.append({
+        "Operation": op_name,
+        "Process Description": process_description,
+        "Cycle Time (Min)": round(cycle_time, 2),
+        "Machine Cost/Pc ($)": round(machining_cost_pc, 2),
+        "Tool Cost/Pc ($)": round(tool_cost_pc, 2),
+        "Total Stage CPC ($)": round(total_op_cpc, 2),
+        "Shift Yield (pcs)": int(shift_output)
     })
 
-df_routing = pd.DataFrame(calculated_rows)
-shift_capacity = (480.0 / total_cycle_mins) * efficiency if total_cycle_mins > 0 else 0
+df_routing = pd.DataFrame(routing_data)
 
-# --- Render Main Displays ---
-with main_content:
-    kpi1, kpi2 = st.columns(2)
-    kpi1.metric("Total Cycle Time", f"{total_cycle_mins:.2f} Mins")
-    kpi2.metric("Avg Shift Capacity", f"{int(shift_capacity)} Pcs", delta_color="normal")
-    
-    st.subheader("📄 Interactive Live Process Routing Sheet")
-    st.dataframe(df_routing, use_container_width=True, hide_index=True)
-    
-    # Export Setup
-    csv_buffer = io.StringIO()
-    csv_buffer.write(f"Doc Number,{doc_num}\nPart Name,{part_name}\nCustomer Name,{customer}\n\n")
-    df_routing.to_csv(csv_buffer, index=False)
-    
-    st.download_button(
-        label="📥 Download Routing Card (CSV)",
-        data=csv_buffer.getvalue(),
-        file_name=f"Routing_Card_{doc_num}.csv",
-        mime="text/csv"
-    )
+# --- Step 6: Document Summary Display ---
+st.subheader("📄 Manufacturing Routing Card Summary")
 
-    # Graphical Charts Rendering
-    st.subheader("⏱️ Process Visual Insights")
-    chart_col1, chart_col2 = st.columns(2)
-    
-    with chart_col1:
-        st.write("**Cycle Time per Operation (Minutes)**")
-        df_active_cycle = df_routing[df_routing["Cycle (m)"] > 0]
-        st.bar_chart(data=df_active_cycle, x="Op #", y="Cycle (m)", color="#2563eb")
-        
-    with chart_col2:
-        st.write("**Stage Tooling Consumable Cost (₹/pc)**")
-        df_active_cost = df_routing[df_routing["Cost/Pc (₹)"] > 0]
-        st.bar_chart(data=df_active_cost, x="Op #", y="Cost/Pc (₹)", color="#0d9488")
+meta_col1, meta_col2, meta_col3 = st.columns(3)
+with meta_col1:
+    st.write(f"**Document No:** {doc_num}")
+    st.write(f"**Customer:** {customer_name}")
+with meta_col2:
+    st.write(f"**Part Name:** {part_name}")
+    st.write(f"**Material & Hardness:** {material_type} ({hardness_value})")
+with meta_col3:
+    total_time = df_routing["Cycle Time (Min)"].sum()
+    total_cpc = df_routing["Total Stage CPC ($)"].sum()
+    st.write(f"**Total Estimated Cycle Time:** {total_time:.2f} Mins")
+    st.write(f"**Total Process CPC:** ${total_cpc:.2f}")
+
+st.dataframe(df_routing.set_index("Operation"), use_container_width=True)
