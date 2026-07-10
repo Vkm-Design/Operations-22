@@ -1,160 +1,432 @@
-import streamlit as st
-import pandas as pd
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+import math
+import csv
 
-# --- Page Configuration ---
-st.set_page_config(page_title="Advanced Component Router", layout="wide")
+OPERATION_NAMES = [
+    "Inward Inspection Of Forging",
+    "Rough Thickness Grinding",
+    "Combined Operations- VMC",
+    "Big End Chamfering 2nd Side",
+    "Heat treatment, (Case carburizing, Hardening & temper)",
+    "Shot blasting",
+    "Induction softening",
+    "Finish Thickness Grinding",
+    "Hard Boring B/E & S/E",
+    "Oil Hole Drilling & Chamfering",
+    "Oil Hole Deburing",
+    "Small End Chamfering",
+    "B/E Honning",
+    "S/E Honning",
+    "Crack Inspection",
+    "Demagnetising",
+    "High Pressure Cleaning",
+    "Visual Inspection-100%",
+    "100% Inspection (CD, Bend & Twist )",
+    "Laser Marking",
+    "Final Inspection",
+    "Oiling & Packing"
+]
 
-st.title("⚙️ Engineering Process Planner & Routing Engine")
-st.write("Fill out the global component details below. The system will cascade these dimensions through all 22 operations.")
+MACHINE_COST_DEFAULTS = {
+    "Manual": 0,
+    "Manual with Gauge": 0,
+    "SDG (Ø600)- For CR Thickness Grinding": 36,
+    "Makino": 60,
+    "Sansera Horizontal Machine": 45,
+    "SQF": 80,
+    "Shot Blasting M/c": 18,
+    "IH M/c": 22,
+    "SFB 02- For CR Fine Boring with Index table & NT": 55,
+    "SHD 03/ SID- For CR Oil Hole Drilling": 28,
+    "Deburring Station": 10,
+    "Drilling Machine": 15,
+    "SVH- For CR Vertical Honing/Big End Honing": 35,
+    "MPI": 12,
+    "Demagnetiser": 5,
+    "CLEANING 01- Cleantech": 20,
+    "Laser Marking M/c": 25,
+}
 
-# --- Step 1: Global Settings & Documentation ---
-st.header("📋 Global Component Specifications")
-
-# Documentation Fields
-doc_col1, doc_col2, doc_col3 = st.columns(3)
-with doc_col1:
-    doc_num = st.text_input("Document Number", value="DOC-2026-001")
-with doc_col2:
-    part_name = st.text_input("Part Name", value="Main Shaft / Valve Body")
-with doc_col3:
-    customer_name = st.text_input("Customer Name", value="Global Machining Corp")
-
-# --- Step 2: Global Material & Hardness Options ---
-st.subheader("🪵 Material Selection")
-mat_col1, mat_col2, mat_col3 = st.columns(3)
-with mat_col1:
-    material_type = st.selectbox("Material Grade", ["Aluminium", "Carbon Steel", "Alloy Steel", "Stainless Steel"])
-with mat_col2:
-    hardness_value = st.text_input("Hardness (e.g., 30 HRC, 220 HB)", value="32 HRC")
-with mat_col3:
-    batch_size = st.number_input("Production Batch Size (pcs)", min_value=1, value=500, step=50)
-
-# --- Step 3: Horizontal Sizing Matrix (Lines 1 & 2) ---
-st.subheader("📐 Diameter & Thickness Parameters")
-
-# Line 1: D1 Parameters
-st.markdown("**Line 1: Diameter 1 (D1) Sizing**")
-d1_col1, d1_col2, d1_col3, d1_col4, d1_col5 = st.columns(5)
-with d1_col1:
-    finish_dia_1 = st.number_input("Finish Size D1 (mm)", min_value=0.0, value=35.0, step=0.1)
-with d1_col2:
-    tolerance_d1 = st.number_input("D1 Tolerance (mm)", min_value=0.000, value=0.025, format="%.3f", step=0.005)
-with d1_col3:
-    surface_finish_d1 = st.number_input("D1 Surface Finish (Ra)", min_value=0.0, value=1.6, step=0.4, format="%.1f")
-with d1_col4:
-    suggested_input_d1 = finish_dia_1 + 4.0
-    input_dia_1 = st.number_input("Input Size D1 (mm)", min_value=0.0, value=suggested_input_d1, step=1.0)
-with d1_col5:
-    thickness_d1 = st.number_input("Thickness/Length for D1 (mm)", min_value=0.0, value=40.0, step=1.0)
-
-# Line 2: D2 Parameters
-st.markdown("**Line 2: Diameter 2 (D2) Sizing**")
-d2_col1, d2_col2, d2_col3, d2_col4, d2_col5 = st.columns(5)
-with d2_col1:
-    finish_dia_2 = st.number_input("Finish Size D2 (mm)", min_value=0.0, value=25.0, step=0.1)
-with d2_col2:
-    tolerance_d2 = st.number_input("D2 Tolerance (mm)", min_value=0.000, value=0.025, format="%.3f", step=0.005)
-with d2_col3:
-    surface_finish_d2 = st.number_input("D2 Surface Finish (Ra)", min_value=0.0, value=1.6, step=0.4, format="%.1f")
-with d2_col4:
-    input_dia_2 = st.number_input("Input Size D2 (mm) [Solid]", min_value=0.0, value=0.0, step=1.0)
-with d2_col5:
-    thickness_d2 = st.number_input("Thickness/Length for D2 (mm)", min_value=0.0, value=20.0, step=1.0)
-
-# --- Step 4: Oil Hole Sizing Parameters ---
-st.subheader("🛢️ Oil Hole Specifications")
-
-# Row 1: Oil Hole 1 Configurations
-st.markdown("**Oil Hole 1 Parameters**")
-oh1_col1, oh1_col2, oh1_col3, oh1_col4 = st.columns(4)
-with oh1_col1:
-    oil_hole_qty_1 = st.number_input("Hole 1 Qty", min_value=0, value=1, step=1)
-with oh1_col2:
-    oil_hole_dia_1 = st.number_input("Hole 1 Size/Dia (mm)", min_value=0.0, value=10.0, step=0.5)
-with oh1_col3:
-    oil_hole_finish_1 = st.number_input("Hole 1 Surface Finish (Ra)", min_value=0.0, value=3.2, step=0.4, format="%.1f")
-with oh1_col4:
-    oil_hole_depth_1 = st.number_input("Hole 1 Depth (mm)", min_value=0.0, value=15.0, step=1.0)
-
-# Row 2: Oil Hole 2 Configurations
-st.markdown("**Oil Hole 2 Parameters**")
-oh2_col1, oh2_col2, oh2_col3, oh2_col4 = st.columns(4)
-with oh2_col1:
-    oil_hole_qty_2 = st.number_input("Hole 2 Qty", min_value=0, value=0, step=1)
-with oh2_col2:
-    oil_hole_dia_2 = st.number_input("Hole 2 Size/Dia (mm)", min_value=0.0, value=12.0, step=0.5)
-with oh2_col3:
-    oil_hole_finish_2 = st.number_input("Hole 2 Surface Finish (Ra)", min_value=0.0, value=3.2, step=0.4, format="%.1f")
-with oh2_col4:
-    oil_hole_depth_2 = st.number_input("Hole 2 Depth (mm)", min_value=0.0, value=20.0, step=1.0)
-
-# --- Step 5: Automated 22-Operation Engineering Engine ---
-base_hourly_rate = 45.0
-routing_data = []
-
-for op_num in range(1, 23):
-    op_name = f"Operation {op_num:02d}"
-    process_description = "Standard Process Step"
-    cycle_time = 1.5
-    tool_cost_batch = 50.0
-    m_rate = base_hourly_rate
-    
-    # --- EDIT INDIVIDUAL OPERATION LOGIC BELOW ---
-    if op_num == 1:
-        process_description = f"Rough Turn Outer Dia 1 from Ø{input_dia_1} to Ø{finish_dia_1}"
-        stock_to_remove = input_dia_1 - finish_dia_1
-        cycle_time = (stock_to_remove * 0.4) + (thickness_d1 * 0.02)
-        tool_cost_batch = 120.0
+class ConRodPlannerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("⚙️ Con Rod Process Planner & Routing Engine")
+        self.root.geometry("1400x850")
+        self.root.configure(bg="#f4f6f9")
         
-    elif op_num == 2:
-        process_description = f"Bore Internal Dia 2 (Depth: {thickness_d2}mm)"
-        if input_dia_2 == 0:
-            cycle_time = (finish_dia_2 * 0.1) * (thickness_d2 / 10)
-        else:
-            cycle_time = ((finish_dia_2 - input_dia_2) * 0.05) * (thickness_d2 / 10)
-        tool_cost_batch = 180.0
+        self.operation_state = []
+        self.hrc_correction = {"rpm": 1.0, "feed": 1.0}
         
-    elif op_num == 3:
-        process_description = f"Drill {oil_hole_qty_1} Oil Hole(s) Ø{oil_hole_dia_1} to Depth {oil_hole_depth_1}mm"
-        if oil_hole_qty_1 > 0:
-            cycle_time = (oil_hole_qty_1 * oil_hole_depth_1 * 0.05)
+        self.create_styles()
+        self.build_ui()
+        self.update_hrc_correction()
+        self.build_initial_state()
+        self.recalculate_engine()
+
+    def create_styles(self):
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("Card.TFrame", background="#ffffff", borderwidth=1, relief="solid")
+        style.configure("Header.TLabel", font=("Segoe UI", 12, "bold"), background="#ffffff")
+
+    def build_ui(self):
+        # --- Top Header Banner ---
+        header_frame = tk.Frame(self.root, bg="#1e3a8a", padding=15)
+        header_frame.pack(fill="x", side="top", padx=15, pady=10)
+        
+        lbl_title = tk.Label(header_frame, text="⚙️ Con Rod Process Planner & Routing Engine", 
+                             font=("Segoe UI", 16, "bold"), fg="white", bg="#1e3a8a")
+        lbl_title.pack(side="left", anchor="w")
+        
+        btn_csv = tk.Button(header_frame, text="📥 Download Routing Card (CSV)", bg="#0d9488", fg="white",
+                            font=("Segoe UI", 10, "bold"), command=self.download_csv, relief="flat", padx=10)
+        btn_csv.pack(side="right")
+
+        # --- Main Layout Grid ---
+        main_pane = tk.PanedWindow(self.root, orient="horizontal", bg="#f4f6f9", sashrelief="raised", sashwidth=4)
+        main_pane.pack(fill="both", expand=True, padx=15, pady=5)
+        
+        # --- Left Sidebar Scrollable Inputs ---
+        sidebar_canvas = tk.Canvas(main_pane, width=320, bg="#f4f6f9", highlightthickness=0)
+        sidebar_scroll = ttk.Scrollbar(main_pane, orient="vertical", command=sidebar_canvas.yview)
+        self.sidebar = tk.Frame(sidebar_canvas, bg="#f4f6f9")
+        self.sidebar.bind("<Configure>", lambda e: sidebar_canvas.configure(scrollregion=sidebar_canvas.bbox("all")))
+        sidebar_canvas.create_window((0, 0), window=self.sidebar, anchor="nw")
+        sidebar_canvas.configure(yscrollcommand=sidebar_scroll.set)
+        
+        main_pane.add(sidebar_canvas)
+        main_pane.add(sidebar_scroll)
+        
+        # --- Right Main Panel ---
+        right_panel = tk.Frame(main_pane, bg="#f4f6f9")
+        main_pane.add(right_panel)
+
+        # Build Sidebar Widgets
+        self.build_sidebar_inputs()
+        
+        # Build Summary KPIs
+        kpi_frame = tk.Frame(right_panel, bg="#f4f6f9")
+        kpi_frame.pack(fill="x", pady=(0, 10))
+        
+        self.kpi_cycle_lbl = tk.Label(kpi_frame, text="Total Cycle Time\n0.00 Mins", font=("Segoe UI", 13, "bold"),
+                                      bg="#ffffff", relief="groove", bd=2, width=25, pady=10)
+        self.kpi_cycle_lbl.pack(side="left", padx=(0, 15))
+        
+        self.kpi_yield_lbl = tk.Label(kpi_frame, text="Avg Shift Capacity\n0 pcs", font=("Segoe UI", 13, "bold"),
+                                      bg="#ffffff", relief="groove", bd=2, width=25, pady=10, fg="#8b5cf6")
+        self.kpi_yield_lbl.pack(side="left")
+
+        # --- Operational Central Grid Table View ---
+        table_card = ttk.Frame(right_panel, style="Card.TFrame")
+        table_card.pack(fill="both", expand=True, pady=5)
+        
+        table_header = tk.Label(table_card, text="📄 Process Routing Card — 22 Operations (Editable Parameters Below)", 
+                                font=("Segoe UI", 11, "bold"), bg="#ffffff", anchor="w", padx=10, pady=8)
+        table_header.pack(fill="x")
+        
+        table_frame = tk.Frame(table_card, bg="#ffffff")
+        table_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Scrollbars for Data Tree
+        scroll_x = ttk.Scrollbar(table_frame, orient="horizontal")
+        scroll_y = ttk.Scrollbar(table_frame, orient="vertical")
+        
+        columns = ("Op", "OpName", "Machine", "MachCost", "PartsLoaded", "OpTime", "LoadUnload", "CycleMin", "PartsHr", "ToolCost", "ToolLife", "Unit", "Regrinds", "ToolCostPc")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", 
+                                 xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set, selectmode="browse")
+        
+        scroll_x.config(command=self.tree.xview)
+        scroll_y.config(command=self.tree.yview)
+        scroll_x.pack(side="bottom", fill="x")
+        scroll_y.pack(side="right", fill="y")
+        self.tree.pack(side="left", fill="both", expand=True)
+        
+        # Layout Headings
+        headers = {
+            "Op": "Op #", "OpName": "Operation Name", "Machine": "Machine Type", "MachCost": "M/c Cost (Lakh)",
+            "PartsLoaded": "Loaded", "OpTime": "Mach (s)", "LoadUnload": "L/U (s)", "CycleMin": "Cycle (m)",
+            "PartsHr": "Pcs/Hr", "ToolCost": "Tool Cost (₹)", "ToolLife": "Life", "Unit": "Unit",
+            "Regrinds": "Regrinds", "ToolCostPc": "Cost/Pc (₹)"
+        }
+        for col, txt in headers.items():
+            self.tree.heading(col, text=txt, anchor="center")
+            self.tree.column(col, width=70 if len(col)<7 else 130, anchor="center" if col!="OpName" else "w")
+            
+        self.tree.bind("<Double-1>", self.on_double_click_edit)
+
+        # --- Inline Text-Based Analytics Panel ---
+        charts_frame = tk.Frame(right_panel, bg="#f4f6f9")
+        charts_frame.pack(fill="x", pady=10)
+        
+        self.txt_chart_cycle = tk.Text(charts_frame, height=12, width=65, font=("Consolas", 9.5), bg="#ffffff", bd=1, relief="solid")
+        self.txt_chart_cycle.pack(side="left", padx=(0, 15), fill="x", expand=True)
+        
+        self.txt_chart_cost = tk.Text(charts_frame, height=12, width=65, font=("Consolas", 9.5), bg="#ffffff", bd=1, relief="solid")
+        self.txt_chart_cost.pack(side="right", fill="x", expand=True)
+
+    def build_sidebar_inputs(self):
+        def create_section(parent, name):
+            f = tk.LabelFrame(parent, text=name, font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#0f172a", padx=10, pady=10)
+            f.pack(fill="x", pady=8, padx=5)
+            return f
+
+        # Section 1: Metadata
+        sec1 = create_section(self.sidebar, "📋 Document Metadata")
+        self.inputs = {}
+        for label_text, var_key, default in [("Document Number", "docNum", "DOC-2026-001"), 
+                                             ("Part Name", "partName", "Con Rod — SCr420HV"), 
+                                             ("Customer Name", "customerName", "Global Corp")]:
+            tk.Label(sec1, text=label_text, font=("Segoe UI", 9), bg="#ffffff", fg="#64748b").pack(anchor="w")
+            ent = ttk.Entry(sec1)
+            ent.insert(0, default)
+            ent.pack(fill="x", pady=(2, 6))
+            self.inputs[var_key] = ent
+
+        # Section 2: Material & Dynamic Rates
+        sec2 = create_section(self.sidebar, "🪵 Material & Shift Settings")
+        tk.Label(sec2, text="Material Grade", font=("Segoe UI", 9), bg="#ffffff", fg="#64748b").pack(anchor="w")
+        self.mat_grade_combo = ttk.Combobox(sec2, values=["Steel (up to 30 HRC)", "Steel (30–40 HRC)"], state="readonly")
+        self.mat_grade_combo.current(0)
+        self.mat_grade_combo.pack(fill="x", pady=(2, 6))
+        self.mat_grade_combo.bind("<<ComboboxSelected>>", lambda e: self.trigger_recalculation())
+
+        for label_text, var_key, default in [("Batch Size (pcs)", "batchSize", "500"),
+                                             ("Base Hourly Rate (INR/hr)", "baseHourlyRate", "500"),
+                                             ("Shift Efficiency (%)", "efficiency", "90")]:
+            tk.Label(sec2, text=label_text, font=("Segoe UI", 9), bg="#ffffff", fg="#64748b").pack(anchor="w")
+            ent = ttk.Entry(sec2)
+            ent.insert(0, default)
+            ent.pack(fill="x", pady=(2, 6))
+            ent.bind("<FocusOut>", lambda e: self.trigger_recalculation())
+            self.inputs[var_key] = ent
+
+        # Section 3: Component Sizing Engine Parameters
+        sec3 = create_section(self.sidebar, "📐 Component Dimensions")
+        for label_text, var_key, default in [("Big End Diameter (mm)", "finishDia1", "38.0"),
+                                             ("Big End Thickness (mm)", "thicknessD1", "16.0"),
+                                             ("Small End Diameter (mm)", "finishDia2", "14.0"),
+                                             ("Small End Thickness (mm)", "thicknessD2", "16.0"),
+                                             ("Oil Hole Depth (mm)", "oilHoleDepth", "3.0")]:
+            tk.Label(sec3, text=label_text, font=("Segoe UI", 9), bg="#ffffff", fg="#64748b").pack(anchor="w")
+            ent = ttk.Entry(sec3)
+            ent.insert(0, default)
+            ent.pack(fill="x", pady=(2, 6))
+            ent.bind("<FocusOut>", lambda e: self.trigger_recalculation())
+            self.inputs[var_key] = ent
+
+    def update_hrc_correction(self):
+        grade = self.mat_grade_combo.get()
+        if "30–40" in grade:
+            self.hrc_correction = {"rpm": 0.90, "feed": 0.95}
         else:
-            cycle_time = 0.0
-            process_description = "Oil Hole 1 Stage Skipped"
-        tool_cost_batch = 60.0
+            self.hrc_correction = {"rpm": 1.0, "feed": 1.0}
 
-    # Math calculations
-    machining_cost_pc = (cycle_time / 60) * m_rate
-    tool_cost_pc = tool_cost_batch / batch_size
-    total_op_cpc = machining_cost_pc + tool_cost_pc
-    shift_output = (8 * 60) / cycle_time if cycle_time > 0 else 0
-    
-    routing_data.append({
-        "Operation": op_name,
-        "Process Description": process_description,
-        "Cycle Time (Min)": round(cycle_time, 2),
-        "Machine Cost/Pc ($)": round(machining_cost_pc, 2),
-        "Tool Cost/Pc ($)": round(tool_cost_pc, 2),
-        "Total Stage CPC ($)": round(total_op_cpc, 2),
-        "Shift Yield (pcs)": int(shift_output)
-    })
+    def build_initial_state(self):
+        f_dia1 = float(self.inputs["finishDia1"].get() or 38.0)
+        f_dia2 = float(self.inputs["finishDia2"].get() or 14.0)
+        t_d1 = float(self.inputs["thicknessD1"].get() or 16.0)
+        t_d2 = float(self.inputs["thicknessD2"].get() or 16.0)
+        oh_depth = float(self.inputs["oilHoleDepth"].get() or 3.0)
 
-df_routing = pd.DataFrame(routing_data)
+        # Smart Engine logic placeholder for Op3 mapping
+        calculated_op3_time = max(25.0, round((f_dia1 * 0.4) + (f_dia2 * 0.5) + (t_d1 * 0.3), 1))
 
-# --- Step 6: Document Summary Display ---
-st.subheader("📄 Manufacturing Routing Card Summary")
+        self.operation_state = []
+        for idx, name in enumerate(OPERATION_NAMES, 1):
+            machine = "Manual"
+            mc_lakh = 0
+            parts_loaded = 1
+            op_time = 60
+            lu_time = 5
+            tool_cost = 1200
+            tool_life = 250
+            unit = "Parts"
+            regrinds = 2
+            regrind_cost = 150
+            is_manual = False
 
-meta_col1, meta_col2, meta_col3 = st.columns(3)
-with meta_col1:
-    st.write(f"**Document No:** {doc_num}")
-    st.write(f"**Customer:** {customer_name}")
-with meta_col2:
-    st.write(f"**Part Name:** {part_name}")
-    st.write(f"**Material & Hardness:** {material_type} ({hardness_value})")
-with meta_col3:
-    total_time = df_routing["Cycle Time (Min)"].sum()
-    total_cpc = df_routing["Total Stage CPC ($)"].sum()
-    st.write(f"**Total Estimated Cycle Time:** {total_time:.2f} Mins")
-    st.write(f"**Total Process CPC:** ${total_cpc:.2f}")
+            # Differentiate defaults per specific real ops mapping
+            if idx == 1:
+                machine, op_time, lu_time, tool_cost, is_manual = "Manual", 0, 0, 0, True
+            elif idx in [2, 8]:
+                machine, parts_loaded, op_time, lu_time, tool_cost, tool_life = "SDG (Ø600)- For CR Thickness Grinding", 2, 12, 0, 40000, 150000
+            elif idx == 3:
+                machine, op_time, lu_time, tool_cost, tool_life = "Makino", calculated_op3_time, 0, 8500, 500
+            elif idx == 4:
+                machine, op_time, lu_time, tool_cost, tool_life = "Sansera Horizontal Machine", 48, 5, 800, 200
+            elif idx in [5, 6, 7]:
+                machine = "SQF" if idx==5 else ("Shot Blasting M/c" if idx==6 else "IH M/c")
+                op_time, lu_time, tool_cost, is_manual = 0, 0, 0, True
+            elif idx == 9:
+                machine, op_time, lu_time, tool_cost, tool_life, unit = "SFB 02- For CR Fine Boring with Index table & NT", 15, 0, 3500, 45, "Mtr"
+            elif idx == 10:
+                machine, op_time, lu_time, tool_cost, tool_life, unit = "SHD 03/ SID- For CR Oil Hole Drilling", 8, 5, 1000, 30, "Mtr"
+            elif idx == 11:
+                machine, op_time, lu_time, tool_cost, tool_life = "Deburring Station", 10, 0, 0, 1000
+            elif idx == 12:
+                machine, op_time, lu_time, tool_cost, tool_life = "Drilling Machine", 6, 6, 350, 400
+            elif idx in [13, 14]:
+                machine, parts_loaded, op_time, tool_cost, tool_life = "SVH- For CR Vertical Honing/Big End Honing", 6, 64, 21600 if idx==13 else 180000, 40000 if idx==13 else 200000
+            elif idx in [15, 16, 17, 18, 19, 20, 21]:
+                machine = "MPI" if idx==15 else ("Demagnetiser" if idx==16 else ("CLEANING 01- Cleantech" if idx==17 else ("Laser Marking M/c" if idx==20 else "Manual")))
+                op_time, lu_time, tool_cost = (10 if idx in [15,16,18] else (8 if idx==17 else (15 if idx==19 else 6))), 0, 0
+            elif idx == 22:
+                machine, op_time, lu_time, tool_cost, is_manual = "Manual", 0, 0, 0, True
 
-st.dataframe(df_routing.set_index("Operation"), use_container_width=True)
+            mc_lakh = MACHINE_COST_DEFAULTS.get(machine, 0)
+            
+            self.operation_state.append({
+                "opIdx": idx, "name": name, "machine": machine, "machineCostLakh": mc_lakh,
+                "partsLoaded": parts_loaded, "opTimeSec": op_time, "loadUnloadSec": lu_time,
+                "newToolCost": tool_cost, "toolLifeVal": tool_life, "unit": unit,
+                "regrinds": regrinds, "regrindCost": regrind_cost, "isManual": is_manual
+            })
+
+    def trigger_recalculation(self):
+        self.update_hrc_correction()
+        self.recalculate_engine()
+
+    def recalculate_engine(self):
+        try:
+            eff = float(self.inputs["efficiency"].get() or 90) / 100.0
+            hourly_rate = float(self.inputs["baseHourlyRate"].get() or 500)
+        except ValueError:
+            return
+
+        total_cycle_min = 0.0
+        
+        # Clear Data Window
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        for op in self.operation_state:
+            if op["isManual"] or op["opTimeSec"] == 0:
+                cycle_min = 0.0
+                parts_per_hr = 0.0
+                tool_cost_pc = 0.0
+            else:
+                # Engineering core calculations
+                total_station_sec = (op["opTimeSec"] / op["partsLoaded"]) + op["loadUnloadSec"]
+                cycle_min = total_station_sec / 60.0
+                parts_per_hr = (60.0 / cycle_min) * eff if cycle_min > 0 else 0
+                
+                # Tooling Life Cost breakdown
+                total_life = op["toolLifeVal"] * (1 + op["regrinds"])
+                if total_life > 0 and op["newToolCost"] > 0:
+                    total_tool_expense = op["newToolCost"] + (op["regrinds"] * op["regrindCost"])
+                    tool_cost_pc = total_tool_expense / total_life
+                else:
+                    tool_cost_pc = 0.0
+
+            total_cycle_min += cycle_min
+            op["calculated_cycle"] = cycle_min
+            op["calculated_cpc"] = tool_cost_pc
+
+            # Inject into UI Tree
+            self.tree.insert("", "end", values=(
+                f"Op {op['opIdx']:02d}", op["name"], op["machine"], op["machineCostLakh"],
+                op["partsLoaded"], op["opTimeSec"], op["loadUnloadSec"], f"{cycle_min:.2f}",
+                f"{parts_per_hr:.1f}", op["newToolCost"], op["toolLifeVal"], op["unit"],
+                op["regrinds"], f"₹{tool_cost_pc:.2f}"
+            ))
+
+        # Update KPIs
+        shift_capacity = (480.0 / total_cycle_min) * eff if total_cycle_min > 0 else 0
+        self.kpi_cycle_lbl.config(text=f"Total Cycle Time\n{total_cycle_min:.2f} Mins")
+        self.kpi_yield_lbl.config(text=f"Avg Shift Capacity\n{int(shift_capacity)} Pcs")
+        
+        self.render_text_charts()
+
+    def on_double_click_edit(self, event):
+        item = self.tree.selection()
+        if not item:
+            return
+        item = item[0]
+        
+        # Identity parsing
+        op_str = self.tree.item(item, "values")[0]
+        op_idx = int(op_str.replace("Op ", ""))
+        op_data = next(o for o in self.operation_state if o["opIdx"] == op_idx)
+        
+        # Simple modal window input pop
+        pop = tk.Toplevel(self.root)
+        pop.title(f"Modify Operation {op_idx:02d}")
+        pop.geometry("350x250")
+        pop.resizable(False, False)
+        
+        tk.Label(pop, text=f"Edit values for: {op_data['name'][:30]}...", font=("Segoe UI", 9, "italic")).pack(pady=5)
+        
+        fields = [("Machining Time (Sec)", "opTimeSec"), ("Load / Unload Time (Sec)", "loadUnloadSec"), ("New Tool Cost (₹)", "newToolCost")]
+        entries = {}
+        for lbl, key in fields:
+            f = tk.Frame(pop)
+            f.pack(fill="x", padx=20, pady=4)
+            tk.Label(f, text=lbl, width=22, anchor="w").pack(side="left")
+            e = ttk.Entry(f)
+            e.insert(0, str(op_data[key]))
+            e.pack(side="right", expand=True, fill="x")
+            entries[key] = e
+            
+        def save():
+            try:
+                for lbl, key in fields:
+                    op_data[key] = float(entries[key].get()) if "Cost" in lbl or "Time" in key else int(entries[key].get())
+                pop.destroy()
+                self.recalculate_engine()
+            except ValueError:
+                messagebox.showerror("Error", "Please enter valid numeric parameters.")
+
+        tk.Button(pop, text="💾 Save & Update Engine", bg="#2563eb", fg="white", command=save, relief="flat").pack(pady=15)
+
+    def render_text_charts(self):
+        # Render Horizontal Text-based bars for cycle time 
+        self.txt_chart_cycle.config(state="normal")
+        self.txt_chart_cycle.delete("1.0", tk.END)
+        self.txt_chart_cycle.insert(tk.END, "⏱️ Cycle Time Bar-Chart breakdown (Seconds):\n" + "-"*55 + "\n")
+        
+        for op in self.operation_state:
+            if op["opTimeSec"] > 0:
+                bar_len = min(30, int(op["opTimeSec"] / 3))
+                bar = "█" * bar_len
+                self.txt_chart_cycle.insert(tk.END, f"Op {op['opIdx']:02d}: {bar:<30} {op['opTimeSec']}s\n")
+        self.txt_chart_cycle.config(state="disabled")
+
+        # Render Horizontal Text-based bars for CPC Tooling Cost
+        self.txt_chart_cost.config(state="normal")
+        self.txt_chart_cost.delete("1.0", tk.END)
+        self.txt_chart_cost.insert(tk.END, "💰 Tooling Consumable Cost (₹ per piece):\n" + "-"*55 + "\n")
+        
+        for op in self.operation_state:
+            if op["calculated_cpc"] > 0:
+                bar_len = min(30, int(op["calculated_cpc"] * 2))
+                bar = "▓" * bar_len
+                self.txt_chart_cost.insert(tk.END, f"Op {op['opIdx']:02d}: {bar:<30} ₹{op['calculated_cpc']:.2f}/pc\n")
+        self.txt_chart_cost.config(state="disabled")
+
+    def download_csv(self):
+        path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
+        if not path:
+            return
+            
+        with open(path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Document Metadata Sheet Summary"])
+            writer.writerow(["Doc Number", self.inputs["docNum"].get()])
+            writer.writerow(["Part Name", self.inputs["partName"].get()])
+            writer.writerow([])
+            writer.writerow(["Op #", "Operation Name", "Machine Type", "Machine Cost (Lakh)", "Parts Loaded", "Mach Time (s)", "L/U Time (s)", "Calculated Cycle (min)", "Tool Cost/pc (INR)"])
+            
+            for op in self.operation_state:
+                writer.writerow([
+                    op["opIdx"], op["name"], op["machine"], op["machineCostLakh"],
+                    op["partsLoaded"], op["opTimeSec"], op["loadUnloadSec"],
+                    f"{op['calculated_cycle']:.2f}", f"{op['calculated_cpc']:.2f}"
+                ])
+                
+        messagebox.showinfo("Success", f"Process Routing sheet successfully exported to:\n{path}")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ConRodPlannerApp(root)
+    root.mainloop()
